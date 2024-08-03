@@ -12,7 +12,13 @@ class Packet(Enum):
     CAR_SETUPS = (5, "Car Setups", 1102, 0, PacketSetups)
     CAR_TELEMETRY = (6, "Car Telemetry", 1347, 0, PacketCarTelemetry)
     CAR_STATUS = (7, "Car Status", 1058, 0, PacketCarStatus)
-    FINAL_CLASSIFICATION = (8, "Final Classification", 1015, 0, PacketFinalClassification)
+    FINAL_CLASSIFICATION = (
+        8,
+        "Final Classification",
+        1015,
+        0,
+        PacketFinalClassification,
+    )
     LOBBY_INFO = (9, "Lobby Info", 1191, 0, None)
     CAR_DAMAGE = (10, "Car Damage", 948, 0, PacketCarDamage)
     SESSION_HISTORY = (11, "Session History", 1155, 3, None)
