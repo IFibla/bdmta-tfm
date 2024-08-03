@@ -1,0 +1,104 @@
+services:
+  data-ingestion:
+    container_name: data-ingestion
+    build: data-ingestion/
+    env_file:
+      - dev.env
+    ports:
+      - "20777:20777/udp"
+    networks:
+      - internal-network
+
+  zookeeper:
+    container_name: zookeeper
+    image: docker.io/bitnami/zookeeper:3.9
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - internal-network
+
+  kafka:
+    container_name: kafka
+    image: docker.io/bitnami/kafka:3.4
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+    depends_on:
+      - zookeeper
+    networks:
+      - internal-network
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8000:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    depends_on:
+      - kafka
+    networks:
+      - internal-network
+
+  data-managment-spark-master:
+    build: data-managment/
+    container_name: data-managment-spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
+    ports:
+      - "8080:8080"
+      - "4040:4040"
+    volumes:
+      - "/Users/ignasi/Documents/_00_BDMTA_/bdmta-tfm/data-managment/main.py:/opt/bitnami/spark/main.py"
+    networks:
+      - internal-network
+
+  data-managment-spark-worker:
+    build: data-managment/
+    container_name: data-managment-spark-worker
+    links:
+      - "data-managment-spark-master:spark"
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
+    depends_on:
+      - data-managment-spark-master
+    networks:
+      - internal-network
+
+  # metabase:
+  #   image: metabase/metabase:latest
+  #   container_name: metabase
+  #   hostname: metabase
+  #   volumes:
+  #     - metabase-volume:/dev/random:ro
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - internal-network
+  #   healthcheck:
+  #     test: curl --fail -I http://localhost:3000/api/health || exit 1
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+
+networks:
+  internal-network:
+
+volumes:
+  metabase-volume:
