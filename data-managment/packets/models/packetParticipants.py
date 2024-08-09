@@ -1,6 +1,9 @@
 from ctypes import Structure, c_char, c_uint8, c_uint16
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class ParticipantData(Structure):
@@ -16,8 +19,6 @@ class ParticipantData(Structure):
         ("nationality", c_uint8),
         ("name", c_char * 48),
         ("yourTelemetry", c_uint8),
-        ("showOnlineNames", c_uint8),
-        ("platform", c_uint8),
     ]
 
     def to_dict(self):
@@ -31,8 +32,6 @@ class ParticipantData(Structure):
             "nationality": self.nationality,
             "name": self.name.decode("utf-8").rstrip("\x00"),
             "yourTelemetry": self.yourTelemetry,
-            "showOnlineNames": self.showOnlineNames,
-            "platform": self.platform,
         }
 
 
@@ -44,16 +43,15 @@ class PacketParticipants(Structure):
     _fields_ = [
         ("header", PacketHeader),
         ("numActiveCars", c_uint8),
-        ("participants", ParticipantData * Packet.MAX_NUMBER_OF_PARTICIPANTS),
+        ("participants", ParticipantData * MAX_NUMBER_OF_PARTICIPANTS),
     ]
 
     def to_dict(self):
-        participant_dicts = [
-            self.participants[i].to_dict()
-            for i in range(Packet.MAX_NUMBER_OF_PARTICIPANTS)
-        ]
         return {
             "header": self.header.to_dict(),
+            self.ARRAY_NAME: [
+                self.participants[i].to_dict()
+                for i in range(MAX_NUMBER_OF_PARTICIPANTS)
+            ],
             "numActiveCars": self.numActiveCars,
-            self.ARRAY_NAME: participant_dicts,
         }

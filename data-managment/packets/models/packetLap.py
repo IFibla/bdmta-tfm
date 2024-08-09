@@ -1,6 +1,9 @@
 from ctypes import Structure, c_float, c_uint32, c_uint16, c_uint8
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class Lap(Structure):
@@ -34,7 +37,7 @@ class Lap(Structure):
     ]
 
     def to_dict(self):
-        return {field[0]: getattr(self, field[0]) for field in self._fields_}
+        return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
 
 class PacketLap(Structure):
@@ -44,18 +47,17 @@ class PacketLap(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("lap", Lap * Packet.MAX_NUMBER_OF_PARTICIPANTS),
+        ("lap", Lap * MAX_NUMBER_OF_PARTICIPANTS),
         ("time_trial_pb_car_index", c_uint8),
         ("time_trial_rival_car_index", c_uint8),
     ]
 
     def to_dict(self):
-        lap_dicts = [
-            self.lap[i].to_dict() for i in range(Packet.MAX_NUMBER_OF_PARTICIPANTS)
-        ]
         return {
             "header": self.header.to_dict(),
-            self.ARRAY_NAME: lap_dicts,
-            "time_trial_pb_car_index": self.time_trial_pb_car_index,
-            "time_trial_rival_car_index": self.time_trial_rival_car_index,
+            self.ARRAY_NAME: [
+                self.lap[i].to_dict() for i in range(MAX_NUMBER_OF_PARTICIPANTS)
+            ],
+            "time_trial_pb_car_index": float(self.time_trial_pb_car_index),
+            "time_trial_rival_car_index": float(self.time_trial_rival_car_index),
         }

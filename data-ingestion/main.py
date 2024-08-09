@@ -5,6 +5,7 @@ import time
 import uuid
 import os
 
+
 def main(
     socket_host: str,
     socket_port: int,
@@ -37,10 +38,10 @@ def main(
 
     while True:
         key = str(uuid.uuid4()).encode()
-        # value, _ = server_socket.recvfrom(socket_maxsize)
-        producer.send(kafka_topic, key=key, value=key)
+        value, _ = server_socket.recvfrom(socket_maxsize)
+        producer.send(kafka_topic, key=key, value=value)
         logging.info(f"Sent message {key} to Kafka topic {kafka_topic}")
-        time.sleep(5)
+
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -53,5 +54,5 @@ if __name__ == "__main__":
         int(os.environ.get("SOCKET_MAXSIZE")),
         os.environ.get("KAFKA_HOST"),
         int(os.environ.get("KAFKA_PORT")),
-        os.environ.get("KAFKA_TOPIC")
+        os.environ.get("KAFKA_TOPIC"),
     )

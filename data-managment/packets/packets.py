@@ -1,6 +1,6 @@
 from ctypes import Structure
 from enum import Enum
-from models import *
+from .models import *
 
 
 class Packet(Enum):
@@ -8,7 +8,7 @@ class Packet(Enum):
     SESSION = (1, "Session", 632, 1, PacketSession)
     LAP_DATA = (2, "Lap Data", 972, 0, PacketLap)
     EVENT = (3, "Event", 40, 2, None)
-    PARTICIPANTS = (4, "Participants", 1257, 0, PacketParticipants)
+    PARTICIPANTS = (4, "Participants", 1257, -1, None)
     CAR_SETUPS = (5, "Car Setups", 1102, 0, PacketSetups)
     CAR_TELEMETRY = (6, "Car Telemetry", 1347, 0, PacketCarTelemetry)
     CAR_STATUS = (7, "Car Status", 1058, 0, PacketCarStatus)
@@ -22,10 +22,6 @@ class Packet(Enum):
     LOBBY_INFO = (9, "Lobby Info", 1191, 0, None)
     CAR_DAMAGE = (10, "Car Damage", 948, 0, PacketCarDamage)
     SESSION_HISTORY = (11, "Session History", 1155, 3, None)
-
-    MAX_MARSHALL_ZONES = 21
-    MAX_NUMBER_OF_PARTICIPANTS = 22
-    MAX_WEATHER_FORECAST_SAMPLES = 56
 
     def __init__(self, id: int, name: str, size: int, category: int, model: Structure):
         self._id = id
@@ -55,25 +51,62 @@ class Packet(Enum):
         for packet in cls:
             if packet.size == size:
                 return packet.name
-        raise ValueError(f"No packet found with size {size}")
+        return None
 
     @classmethod
     def get_category_by_name(cls, name: str) -> int:
         for packet in cls:
             if packet.name == name:
                 return packet.category
-        raise ValueError(f"No packet found with name {name}")
+        return None
 
     @classmethod
     def decode(cls, udp_packet: bytes, name: str) -> dict:
         for packet in cls:
-            if packet.name == name:
+            if packet.name == name and packet.model is not None:
                 return packet.model.from_buffer_copy(udp_packet).to_dict()
-        raise ValueError(f"No packet found with name {name}")
+        return None
 
     @classmethod
     def extract(cls, decoded_packet: dict, name: str) -> [dict]:
         for packet in cls:
-            if packet.name == name:
+            if packet.name == name and packet.model is not None:
                 return decoded_packet[packet.model.ARRAY_NAME]
         raise ValueError(f"No packet found with name {name}")
+
+    @classmethod
+    def flatten(cls, d: dict, parent_key="", sep="_") -> dict:
+        items = []
+        for k, v in d.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(cls.flatten(v, new_key, sep=sep).items())
+            elif isinstance(v, list):
+                for i, item in enumerate(v):
+                    if isinstance(item, (dict, list)):
+                        items.extend(
+                            cls.flatten(item, f"{new_key}_{i}", sep=sep).items()
+                        )
+                    else:
+                        items.append((f"{new_key}_{i}", item))
+            else:
+                items.append((new_key, v))
+        return dict(items)
+
+    @classmethod
+    def get_session_uid(cls, udp_packet: bytes, name: str) -> float:
+        for packet in cls:
+            if packet.name == name and packet.model is not None:
+                return packet.model.from_buffer_copy(udp_packet).to_dict()["header"][
+                    "session_uid"
+                ]
+        return None
+
+    @classmethod
+    def get_session_time(cls, udp_packet: bytes, name: str) -> float:
+        for packet in cls:
+            if packet.name == name and packet.model is not None:
+                return packet.model.from_buffer_copy(udp_packet).to_dict()["header"][
+                    "session_time"
+                ]
+        return None

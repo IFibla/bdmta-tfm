@@ -1,6 +1,9 @@
 from ctypes import Structure, c_float, c_int8, c_uint8, c_uint16, c_uint32
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class MarshallZone(Structure):
@@ -50,13 +53,13 @@ class PacketSession(Structure):
         ("spectator_car_index", c_uint8),
         ("sli_pro_native_support", c_uint8),
         ("number_marshall_zones", c_uint8),
-        ("marshall_zones", MarshallZone * Packet.MAX_MARSHALL_ZONES),
+        ("marshall_zones", MarshallZone * MAX_MARSHALL_ZONES),
         ("safety_car_status", c_uint8),
         ("network_game", c_uint8),
         ("number_forecast_samples", c_uint8),
         (
             "weather_forecast_samples",
-            WeatherForecastSample * Packet.MAX_WEATHER_FORECAST_SAMPLES,
+            WeatherForecastSample * MAX_WEATHER_FORECAST_SAMPLES,
         ),
         ("forecast_accuracy", c_uint8),
         ("ai_difficulty", c_uint8),
@@ -100,15 +103,14 @@ class PacketSession(Structure):
             "sli_pro_native_support": self.sli_pro_native_support,
             "number_marshall_zones": self.number_marshall_zones,
             "marshall_zones": [
-                self.marshall_zones[i].to_dict()
-                for i in range(Packet.MAX_MARSHALL_ZONES)
+                self.marshall_zones[i].to_dict() for i in range(MAX_MARSHALL_ZONES)
             ],
             "safety_car_status": self.safety_car_status,
             "network_game": self.network_game,
             "number_forecast_samples": self.number_forecast_samples,
             "weather_forecast_samples": [
                 self.weather_forecast_samples[i].to_dict()
-                for i in range(Packet.MAX_WEATHER_FORECAST_SAMPLES)
+                for i in range(MAX_WEATHER_FORECAST_SAMPLES)
             ],
             "forecast_accuracy": self.forecast_accuracy,
             "ai_difficulty": self.ai_difficulty,

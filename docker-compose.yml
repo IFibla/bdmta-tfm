@@ -9,6 +9,14 @@ services:
     networks:
       - internal-network
 
+  data-managment:
+    container_name: data-managment
+    build: data-managment/
+    env_file:
+      - dev.env
+    networks:
+      - internal-network
+
   zookeeper:
     container_name: zookeeper
     image: docker.io/bitnami/zookeeper:3.9
@@ -43,6 +51,14 @@ services:
     networks:
       - internal-network
 
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    networks:
+      - internal-network
+
   data-managment-spark-master:
     build: data-managment/
     container_name: data-managment-spark-master
@@ -57,7 +73,7 @@ services:
       - "8080:8080"
       - "4040:4040"
     volumes:
-      - "/Users/ignasi/Documents/_00_BDMTA_/bdmta-tfm/data-managment/main.py:/opt/bitnami/spark/main.py"
+      - "/Users/ignasi/Documents/_00_BDMTA_/bdmta-tfm/data-managment:/home"
     networks:
       - internal-network
 
@@ -80,7 +96,6 @@ services:
       - data-managment-spark-master
     networks:
       - internal-network
-
   # metabase:
   #   image: metabase/metabase:latest
   #   container_name: metabase

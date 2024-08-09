@@ -18,4 +18,4 @@ class PacketHeader(Structure):
     ]
 
     def to_dict(self):
-        return {field[0]: getattr(self, field[0]) for field in self._fields_}
+        return {field[0]: float(getattr(self, field[0])) for field in self._fields_}

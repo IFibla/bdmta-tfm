@@ -1,6 +1,9 @@
 from ctypes import Structure, c_float, c_uint8, c_int8, c_uint16, c_uint32, c_uint64
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class CarTelemetry(Structure):
@@ -17,16 +20,31 @@ class CarTelemetry(Structure):
         ("drs", c_uint8),
         ("rev_lights_percent", c_uint8),
         ("rev_lights_bit_value", c_uint16),
-        ("brakes_temperature", c_uint16 * 4),
-        ("tyres_surface_temperature", c_uint8 * 4),
-        ("tyres_inner_temperature", c_uint8 * 4),
-        ("engine_temperature", c_uint16 * 4),
-        ("tyres_pressure", c_float * 4),
-        ("surface_type", c_uint8 * 4),
+        ("rear_left_brakes_temperature", c_uint16),
+        ("rear_right_brakes_temperature", c_uint16),
+        ("front_left_,brakes_temperature", c_uint16),
+        ("front_right_brakes_temperature", c_uint16),
+        ("rear_left_tyres_surface_temperature", c_uint8),
+        ("rear_right_tyres_surface_temperature", c_uint8),
+        ("front_left_,tyres_surface_temperature", c_uint8),
+        ("front_right_tyres_surface_temperature", c_uint8),
+        ("rear_left_tyres_inner_temperature", c_uint8),
+        ("rear_right_tyres_inner_temperature", c_uint8),
+        ("front_left_,tyres_inner_temperature", c_uint8),
+        ("front_right_tyres_inner_temperature", c_uint8),
+        ("engine_temperature", c_uint16),
+        ("rear_left_tyres_pressure", c_float),
+        ("rear_right_tyres_pressure", c_float),
+        ("front_left_,tyres_pressure", c_float),
+        ("front_right_tyres_pressure", c_float),
+        ("rear_left_surface_type", c_uint8),
+        ("rear_right_surface_type", c_uint8),
+        ("front_left_,surface_type", c_uint8),
+        ("front_right_surface_type", c_uint8),
     ]
 
     def to_dict(self):
-        return {field[0]: getattr(self, field[0]) for field in self._fields_}
+        return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
 
 class PacketCarTelemetry(Structure):
@@ -36,21 +54,22 @@ class PacketCarTelemetry(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("car_telemetry_data", CarTelemetry * Packet.MAX_NUMBER_OF_PARTICIPANTS),
+        ("car_telemetry_data", CarTelemetry * MAX_NUMBER_OF_PARTICIPANTS),
         ("mfd_panel_index", c_uint8),
         ("mfd_panel_index_secondary_player", c_uint8),
         ("suggested_gear", c_int8),
     ]
 
     def to_dict(self):
-        car_dicts = [
-            self.car_telemetry_data[i].to_dict()
-            for i in range(Packet.MAX_NUMBER_OF_PARTICIPANTS)
-        ]
         return {
             "header": self.header.to_dict(),
-            self.ARRAY_NAME: car_dicts,
-            "mfd_panel_index": self.mfd_panel_index,
-            "mfd_panel_index_secondary_player": self.mfd_panel_index_secondary_player,
-            "suggested_gear": self.suggested_gear,
+            self.ARRAY_NAME: [
+                self.car_telemetry_data[i].to_dict()
+                for i in range(MAX_NUMBER_OF_PARTICIPANTS)
+            ],
+            "mfd_panel_index": float(self.mfd_panel_index),
+            "mfd_panel_index_secondary_player": float(
+                self.mfd_panel_index_secondary_player
+            ),
+            "suggested_gear": float(self.suggested_gear),
         }

@@ -1,6 +1,9 @@
 from ctypes import Structure, c_float, c_uint8, c_uint16, c_int8
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class CarStatusData(Structure):
@@ -24,8 +27,6 @@ class CarStatusData(Structure):
         ("visualTyreCompound", c_uint8),
         ("tyresAgeLaps", c_uint8),
         ("vehicleFiaFlags", c_int8),
-        ("enginePowerICE", c_float),
-        ("enginePowerMGUK", c_float),
         ("ersStoreEnergy", c_float),
         ("ersDeployMode", c_uint8),
         ("ersHarvestedThisLapMGUK", c_float),
@@ -35,7 +36,7 @@ class CarStatusData(Structure):
     ]
 
     def to_dict(self):
-        return {field[0]: getattr(self, field[0]) for field in self._fields_}
+        return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
 
 class PacketCarStatus(Structure):
@@ -45,15 +46,13 @@ class PacketCarStatus(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("carStatusData", CarStatusData * Packet.MAX_NUMBER_OF_PARTICIPANTS),
+        ("car_status", CarStatusData * MAX_NUMBER_OF_PARTICIPANTS),
     ]
 
     def to_dict(self):
-        car_status_dicts = [
-            self.carStatusData[i].to_dict()
-            for i in range(Packet.MAX_NUMBER_OF_PARTICIPANTS)
-        ]
         return {
             "header": self.header.to_dict(),
-            self.ARRAY_NAME: car_status_dicts,
+            self.ARRAY_NAME: [
+                self.car_status[i].to_dict() for i in range(MAX_NUMBER_OF_PARTICIPANTS)
+            ],
         }

@@ -1,6 +1,9 @@
 from ctypes import Structure, c_uint8, c_uint32, c_double
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class FinalClassificationData(Structure):
@@ -18,28 +21,34 @@ class FinalClassificationData(Structure):
         ("penaltiesTime", c_uint8),
         ("numPenalties", c_uint8),
         ("numTyreStints", c_uint8),
-        ("tyreStintsActual", c_uint8 * 8),
-        ("tyreStintsVisual", c_uint8 * 8),
-        ("tyreStintsEndLaps", c_uint8 * 8),
+        ("tyreStintsActual_0", c_uint8),
+        ("tyreStintsActual_1", c_uint8),
+        ("tyreStintsActual_2", c_uint8),
+        ("tyreStintsActual_3", c_uint8),
+        ("tyreStintsActual_4", c_uint8),
+        ("tyreStintsActual_5", c_uint8),
+        ("tyreStintsActual_6", c_uint8),
+        ("tyreStintsActual_7", c_uint8),
+        ("tyreStintsVisual_0", c_uint8),
+        ("tyreStintsVisual_1", c_uint8),
+        ("tyreStintsVisual_2", c_uint8),
+        ("tyreStintsVisual_3", c_uint8),
+        ("tyreStintsVisual_4", c_uint8),
+        ("tyreStintsVisual_5", c_uint8),
+        ("tyreStintsVisual_6", c_uint8),
+        ("tyreStintsVisual_7", c_uint8),
+        ("tyreStintsEndLaps_0", c_uint8),
+        ("tyreStintsEndLaps_1", c_uint8),
+        ("tyreStintsEndLaps_2", c_uint8),
+        ("tyreStintsEndLaps_3", c_uint8),
+        ("tyreStintsEndLaps_4", c_uint8),
+        ("tyreStintsEndLaps_5", c_uint8),
+        ("tyreStintsEndLaps_6", c_uint8),
+        ("tyreStintsEndLaps_7", c_uint8),
     ]
 
     def to_dict(self):
-        return {
-            "position": self.position,
-            "numLaps": self.numLaps,
-            "gridPosition": self.gridPosition,
-            "points": self.points,
-            "numPitStops": self.numPitStops,
-            "resultStatus": self.resultStatus,
-            "bestLapTimeInMS": self.bestLapTimeInMS,
-            "totalRaceTime": self.totalRaceTime,
-            "penaltiesTime": self.penaltiesTime,
-            "numPenalties": self.numPenalties,
-            "numTyreStints": self.numTyreStints,
-            "tyreStintsActual": list(self.tyreStintsActual),
-            "tyreStintsVisual": list(self.tyreStintsVisual),
-            "tyreStintsEndLaps": list(self.tyreStintsEndLaps),
-        }
+        return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
 
 class PacketFinalClassification(Structure):
@@ -52,17 +61,16 @@ class PacketFinalClassification(Structure):
         ("numCars", c_uint8),
         (
             "classificationData",
-            FinalClassificationData * Packet.MAX_NUMBER_OF_PARTICIPANTS,
+            FinalClassificationData * MAX_NUMBER_OF_PARTICIPANTS,
         ),
     ]
 
     def to_dict(self):
-        classification_dicts = [
-            self.classificationData[i].to_dict()
-            for i in range(Packet.MAX_NUMBER_OF_PARTICIPANTS)
-        ]
         return {
             "header": self.header.to_dict(),
+            self.ARRAY_NAME: [
+                self.classificationData[i].to_dict()
+                for i in range(MAX_NUMBER_OF_PARTICIPANTS)
+            ],
             "numCars": self.numCars,
-            self.ARRAY_NAME: classification_dicts,
         }

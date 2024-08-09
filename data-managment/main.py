@@ -1,61 +1,99 @@
-from pyspark.sql.types import ArrayType, IntegerType, StringType
-from pyspark.sql.functions import col, explode, udf
-from pyspark.sql.session import SparkSession
+from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
+from kafka import KafkaConsumer
 from packets import Packet
-from delta import *
+import logging
+import socket
+import os
 
-## --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.0.1,io.delta:delta-spark_2.12:3.2.0
 
-spark = (
-    SparkSession.builder.appName("DataDash")
-    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-    .config(
-        "spark.sql.catalog.spark_catalog",
-        "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-    )
-    .config("spark.sql.adaptive.enabled", True)
-)
-spark = configure_spark_with_delta_pip(spark).getOrCreate()
-spark.sparkContext.setLogLevel("ERROR")
+def remove_keys_with_prefix(d, prefix):
+    """
+    Remove key-value pairs from the dictionary where keys start with the given prefix.
 
-raw_to_bronze = (
-    spark.readStream.format("kafka")
-    .option("kafka.bootstrap.servers", f"kafka:9092")
-    .option("subscribe", "stream-ingestion")
-    .load()
-    .selectExpr("CAST(value AS STRING) as udp_packet")
-    .withColumn(
-        "packet_name",
-        udf(lambda x: Packet.get_name_by_size(len(x)), StringType())(col("udp_packet")),
-    )
-    .withColumn(
-        "packet_category",
-        udf(lambda x: Packet.get_category_by_name(x), IntegerType())(
-            col("packet_name")
-        ),
-    )
-    .withColumn(
-        "decoded_packet",
-        udf(lambda x, y: Packet.decode(x, y), StringType())(
-            col("udp_packet"), col("packet_name")
-        ),
-    )
-)
+    :param d: Dictionary from which to remove key-value pairs.
+    :param prefix: Prefix to match the keys.
+    :return: A new dictionary with the specified key-value pairs removed.
+    """
 
-(
-    raw_to_bronze.writeStream.format("delta")
-    .option("checkpointLocation", "/tmp/checkpoint")
-    .partitionBy("packet_category")
-    .start("/tmp/bronze-delta-table")
-)
+    def should_keep(key):
+        return not key.startswith(prefix)
 
-speed_layer = (
-    raw_to_bronze.filter(col("packet_category") == 0)
-    .withColumn(
-        "list_data",
-        udf(lambda x, y: Packet.extract(x, y), ArrayType())(
-            col("decoded_packet"), col("packet_name")
-        ),
+    def filter_dict(d):
+        return {k: v for k, v in d.items() if should_keep(k)}
+
+    return filter_dict(d)
+
+
+def main(
+    kafka_host: str,
+    kafka_port: int,
+    kafka_topic: str,
+    influxdb_host: str,
+    influxdb_port: int,
+    influxdb_token: str,
+    influxdb_org: str,
+    influxdb_bucket: str,
+):
+    consumer = KafkaConsumer(
+        kafka_topic,
+        client_id=str(socket.gethostname()),
+        bootstrap_servers=f"{kafka_host}:{kafka_port}",
+        group_id=kafka_topic,
     )
-    .withColumn("expanded_data", explode(col("list_data")))
-)
+
+    dbclient = InfluxDBClient(
+        url=f"http://{influxdb_host}:{influxdb_port}",
+        token=influxdb_token,
+        org=influxdb_org,
+    )
+
+    write_api = dbclient.write_api(write_options=SYNCHRONOUS)
+
+    logging.info(f"Kafka server: {kafka_host}:{kafka_port}")
+    logging.info(f"InfluxDB server: {influxdb_host}:{influxdb_port}")
+
+    while True:
+        event = next(consumer)
+        key, udp_packet = event.key, event.value
+        logging.info(f"Recived message {key} from Kafka topic {kafka_topic}")
+
+        packet_size = len(udp_packet)
+        packet_name = Packet.get_name_by_size(packet_size)
+        packet_category = Packet.get_category_by_name(packet_name)
+        decoded_packet = Packet.decode(udp_packet, packet_name)
+
+        if packet_category == 0 and decoded_packet is not None:
+            cars = Packet.extract(decoded_packet, packet_name)
+            for idx, car in enumerate(cars):
+                point = (
+                    Point(packet_name)
+                    .tag(
+                        "header_session_time", decoded_packet["header"]["session_time"]
+                    )
+                    .tag(
+                        "header_frame_identifier",
+                        decoded_packet["header"]["frame_identifier"],
+                    )
+                    .tag("car_id", idx)
+                )
+                for field_key, field_value in car.items():
+                    point.field(field_key, field_value)
+                write_api.write(bucket=influxdb_bucket, org=influxdb_org, record=point)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    main(
+        os.environ.get("KAFKA_HOST"),
+        int(os.environ.get("KAFKA_PORT")),
+        os.environ.get("KAFKA_TOPIC"),
+        os.environ.get("INFLUXDB_HOST"),
+        int(os.environ.get("INFLUXDB_PORT")),
+        os.environ.get("INFLUXDB_TOKEN"),
+        os.environ.get("INFLUXDB_ORG"),
+        os.environ.get("INFLUXDB_BUCKET_BRONZE"),
+    )

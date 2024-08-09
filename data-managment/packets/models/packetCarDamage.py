@@ -1,15 +1,27 @@
 from ctypes import Structure, c_float, c_uint8
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class CarDamageData(Structure):
     _pack_ = 1
 
     _fields_ = [
-        ("tyresWear", c_float * 4),
-        ("tyresDamage", c_uint8 * 4),
-        ("brakesDamage", c_uint8 * 4),
+        ("rear_left_tyresWear", c_float),
+        ("rear_right_tyresWear", c_float),
+        ("front_left_tyresWear", c_float),
+        ("front_right_tyresWear", c_float),
+        ("rear_left_tyresDamage", c_uint8),
+        ("rear_right_tyresDamage", c_uint8),
+        ("front_left_tyresDamage", c_uint8),
+        ("front_right_tyresDamage", c_uint8),
+        ("rear_left_brakesDamage", c_uint8),
+        ("rear_right_brakesDamage", c_uint8),
+        ("front_left_brakesDamage", c_uint8),
+        ("front_right_brakesDamage", c_uint8),
         ("frontLeftWingDamage", c_uint8),
         ("frontRightWingDamage", c_uint8),
         ("rearWingDamage", c_uint8),
@@ -31,29 +43,7 @@ class CarDamageData(Structure):
     ]
 
     def to_dict(self):
-        return {
-            "tyresWear": list(self.tyresWear),
-            "tyresDamage": list(self.tyresDamage),
-            "brakesDamage": list(self.brakesDamage),
-            "frontLeftWingDamage": self.frontLeftWingDamage,
-            "frontRightWingDamage": self.frontRightWingDamage,
-            "rearWingDamage": self.rearWingDamage,
-            "floorDamage": self.floorDamage,
-            "diffuserDamage": self.diffuserDamage,
-            "sidepodDamage": self.sidepodDamage,
-            "drsFault": self.drsFault,
-            "ersFault": self.ersFault,
-            "gearBoxDamage": self.gearBoxDamage,
-            "engineDamage": self.engineDamage,
-            "engineMGUHWear": self.engineMGUHWear,
-            "engineESWear": self.engineESWear,
-            "engineCEWear": self.engineCEWear,
-            "engineICEWear": self.engineICEWear,
-            "engineMGUKWear": self.engineMGUKWear,
-            "engineTCWear": self.engineTCWear,
-            "engineBlown": self.engineBlown,
-            "engineSeized": self.engineSeized,
-        }
+        return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
 
 class PacketCarDamage(Structure):
@@ -63,15 +53,14 @@ class PacketCarDamage(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("carDamageData", CarDamageData * Packet.MAX_NUMBER_OF_PARTICIPANTS),
+        ("carDamageData", CarDamageData * MAX_NUMBER_OF_PARTICIPANTS),
     ]
 
     def to_dict(self):
-        car_damage_dicts = [
-            self.carDamageData[i].to_dict()
-            for i in range(Packet.MAX_NUMBER_OF_PARTICIPANTS)
-        ]
         return {
             "header": self.header.to_dict(),
-            self.ARRAY_NAME: car_damage_dicts,
+            self.ARRAY_NAME: [
+                self.carDamageData[i].to_dict()
+                for i in range(MAX_NUMBER_OF_PARTICIPANTS)
+            ],
         }

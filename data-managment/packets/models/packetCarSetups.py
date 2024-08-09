@@ -1,6 +1,9 @@
 from ctypes import Structure, c_float, c_uint8
 from .packetHeader import PacketHeader
-from ..packets import Packet
+
+MAX_MARSHALL_ZONES = 21
+MAX_NUMBER_OF_PARTICIPANTS = 22
+MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
 class CarSetup(Structure):
@@ -32,7 +35,7 @@ class CarSetup(Structure):
     ]
 
     def to_dict(self):
-        return {field[0]: getattr(self, field[0]) for field in self._fields_}
+        return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
 
 class PacketSetups(Structure):
@@ -42,15 +45,13 @@ class PacketSetups(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("car_setup", CarSetup * Packet.MAX_NUMBER_OF_PARTICIPANTS),
+        ("car_setup", CarSetup * MAX_NUMBER_OF_PARTICIPANTS),
     ]
 
     def to_dict(self):
-        car_setup_dicts = [
-            self.car_setup[i].to_dict()
-            for i in range(Packet.MAX_NUMBER_OF_PARTICIPANTS)
-        ]
         return {
             "header": self.header.to_dict(),
-            self.ARRAY_NAME: car_setup_dicts,
+            self.ARRAY_NAME: [
+                self.car_setup[i].to_dict() for i in range(MAX_NUMBER_OF_PARTICIPANTS)
+            ],
         }
