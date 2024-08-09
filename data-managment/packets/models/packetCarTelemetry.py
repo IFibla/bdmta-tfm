@@ -6,7 +6,7 @@ MAX_NUMBER_OF_PARTICIPANTS = 22
 MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
-class CarTelemetry(Structure):
+class CarTelemetryData(Structure):
     _pack_ = 1
 
     _fields_ = [
@@ -22,29 +22,64 @@ class CarTelemetry(Structure):
         ("rev_lights_bit_value", c_uint16),
         ("rear_left_brakes_temperature", c_uint16),
         ("rear_right_brakes_temperature", c_uint16),
-        ("front_left_,brakes_temperature", c_uint16),
+        ("front_left_brakes_temperature", c_uint16),
         ("front_right_brakes_temperature", c_uint16),
         ("rear_left_tyres_surface_temperature", c_uint8),
         ("rear_right_tyres_surface_temperature", c_uint8),
-        ("front_left_,tyres_surface_temperature", c_uint8),
+        ("front_left_tyres_surface_temperature", c_uint8),
         ("front_right_tyres_surface_temperature", c_uint8),
         ("rear_left_tyres_inner_temperature", c_uint8),
         ("rear_right_tyres_inner_temperature", c_uint8),
-        ("front_left_,tyres_inner_temperature", c_uint8),
+        ("front_left_tyres_inner_temperature", c_uint8),
         ("front_right_tyres_inner_temperature", c_uint8),
         ("engine_temperature", c_uint16),
         ("rear_left_tyres_pressure", c_float),
         ("rear_right_tyres_pressure", c_float),
-        ("front_left_,tyres_pressure", c_float),
+        ("front_left_tyres_pressure", c_float),
         ("front_right_tyres_pressure", c_float),
         ("rear_left_surface_type", c_uint8),
         ("rear_right_surface_type", c_uint8),
-        ("front_left_,surface_type", c_uint8),
+        ("front_left_surface_type", c_uint8),
         ("front_right_surface_type", c_uint8),
     ]
 
     def to_dict(self):
         return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
+
+    @classmethod
+    def speed_layer_filter(cls, packet: dict[str, float]) -> dict[str, float]:
+        return {
+            field: packet[field]
+            for field in [
+                "speed",
+                "throttle",
+                "brake",
+                "gear",
+                "engine_rpm",
+                "drs",
+                "rear_left_brakes_temperature",
+                "rear_right_brakes_temperature",
+                "front_left_brakes_temperature",
+                "front_right_brakes_temperature",
+                "rear_left_tyres_surface_temperature",
+                "rear_right_tyres_surface_temperature",
+                "front_left_tyres_surface_temperature",
+                "front_right_tyres_surface_temperature",
+                "rear_left_tyres_inner_temperature",
+                "rear_right_tyres_inner_temperature",
+                "front_left_tyres_inner_temperature",
+                "front_right_tyres_inner_temperature",
+                "engine_temperature",
+                "rear_left_tyres_pressure",
+                "rear_right_tyres_pressure",
+                "front_left_tyres_pressure",
+                "front_right_tyres_pressure",
+                "rear_left_surface_type",
+                "rear_right_surface_type",
+                "front_left_surface_type",
+                "front_right_surface_type",
+            ]
+        }
 
 
 class PacketCarTelemetry(Structure):
@@ -54,7 +89,7 @@ class PacketCarTelemetry(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("car_telemetry_data", CarTelemetry * MAX_NUMBER_OF_PARTICIPANTS),
+        ("car_telemetry_data", CarTelemetryData * MAX_NUMBER_OF_PARTICIPANTS),
         ("mfd_panel_index", c_uint8),
         ("mfd_panel_index_secondary_player", c_uint8),
         ("suggested_gear", c_int8),

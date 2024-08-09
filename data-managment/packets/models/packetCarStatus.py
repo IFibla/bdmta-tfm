@@ -38,6 +38,25 @@ class CarStatusData(Structure):
     def to_dict(self):
         return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
+    @classmethod
+    def speed_layer_filter(cls, packet: dict[str, float]) -> dict[str, float]:
+        return {
+            field: packet[field]
+            for field in [
+                "fuelMix",
+                "frontBrakeBias",
+                "pitLimiterStatus",
+                "fuelInTank",
+                "fuelCapacity",
+                "fuelRemainingLaps",
+                "drsAllowed",
+                "drsActivationDistance",
+                "ersStoreEnergy",
+                "ersDeployMode",
+                "ersDeployedThisLap",
+            ]
+        }
+
 
 class PacketCarStatus(Structure):
     ARRAY_NAME = "car_status_data"

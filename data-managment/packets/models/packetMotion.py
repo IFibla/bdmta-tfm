@@ -6,7 +6,7 @@ MAX_NUMBER_OF_PARTICIPANTS = 22
 MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
-class CarMotion(Structure):
+class CarMotionData(Structure):
     _pack_ = 1
 
     _fields_ = [
@@ -33,6 +33,17 @@ class CarMotion(Structure):
     def to_dict(self):
         return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
+    @classmethod
+    def speed_layer_filter(cls, packet: dict[str, float]) -> dict[str, float]:
+        return {
+            field: packet[field]
+            for field in [
+                "world_position_x",
+                "world_position_y",
+                "world_position_z",
+            ]
+        }
+
 
 class PacketMotion(Structure):
     ARRAY_NAME = "car_motion"
@@ -41,7 +52,7 @@ class PacketMotion(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("car_motion", CarMotion * MAX_NUMBER_OF_PARTICIPANTS),
+        ("car_motion", CarMotionData * MAX_NUMBER_OF_PARTICIPANTS),
         ("rear_left_suspension_position", c_float),
         ("rear_right_suspension_position", c_float),
         ("front_left_suspension_position", c_float),

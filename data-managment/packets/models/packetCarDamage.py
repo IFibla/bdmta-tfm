@@ -45,6 +45,18 @@ class CarDamageData(Structure):
     def to_dict(self):
         return {field[0]: float(getattr(self, field[0])) for field in self._fields_}
 
+    @classmethod
+    def speed_layer_filter(cls, packet: dict[str, float]) -> dict[str, float]:
+        return {
+            field: packet[field]
+            for field in [
+                "rear_left_tyresDamage",
+                "rear_right_tyresDamage",
+                "front_left_tyresDamage",
+                "front_right_tyresDamage",
+            ]
+        }
+
 
 class PacketCarDamage(Structure):
     ARRAY_NAME = "car_damage_data"

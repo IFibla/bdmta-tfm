@@ -6,7 +6,7 @@ MAX_NUMBER_OF_PARTICIPANTS = 22
 MAX_WEATHER_FORECAST_SAMPLES = 56
 
 
-class CarSetup(Structure):
+class CarSetupData(Structure):
     _pack_ = 1
 
     _fields_ = [
@@ -45,7 +45,7 @@ class PacketSetups(Structure):
 
     _fields_ = [
         ("header", PacketHeader),
-        ("car_setup", CarSetup * MAX_NUMBER_OF_PARTICIPANTS),
+        ("car_setup", CarSetupData * MAX_NUMBER_OF_PARTICIPANTS),
     ]
 
     def to_dict(self):

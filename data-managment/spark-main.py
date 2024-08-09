@@ -1,5 +1,10 @@
 from pyspark.sql.types import ArrayType, MapType, FloatType, IntegerType, StringType
-from pyspark.sql.functions import col, posexplode, udf
+from pyspark.sql.functions import (
+    col,
+    explode,
+    posexplode,
+    udf,
+)
 from pyspark.sql.session import SparkSession
 from packets import Packet
 
@@ -51,23 +56,20 @@ ingest_decode_explode = (
             FloatType(),
         )(col("udp_packet"), col("packet_name")),
     )
-    .select("*", posexplode("packet_decoded").alias("driver", "packet_decoded"))
+    .select("*", posexplode("packet_decoded").alias("driver", "driver_packet"))
+)
+
+speed_layer = (
+    ingest_decode_explode.withColumn(
+        "filtered_packet",
+        udf(
+            lambda x, y: Packet.filter_speed_layer_data(x, y),
+            MapType(StringType(), FloatType()),
+        )(col("driver_packet"), col("packet_name")),
+    )
+    .filter(col("filtered_packet").isNotNull())
+    .select("session_uid", "session_time", "driver", "filtered_packet")
     .writeStream.format("console")
     .start()
     .awaitTermination()
 )
-
-# drivers_related = (
-#     stream_classification.filter(col("packet_category") == 0)
-#     .withColumn(
-#         "list_data",
-#         udf(lambda x, y: Packet.extract(x, y), ArrayType())(
-#             col("decoded_packet"), col("packet_name")
-#         ),
-#     )
-#     .withColumn("expanded_data", explode(col("list_data")))
-#     .writeStream.format("console")
-#     # .writeStream.foreach(InfluxDBWriter())
-#     .start()
-#     .awaitTermination()
-# )

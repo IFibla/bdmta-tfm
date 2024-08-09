@@ -4,31 +4,41 @@ from .models import *
 
 
 class Packet(Enum):
-    MOTION = (0, "Motion", 1464, 0, PacketMotion)
-    SESSION = (1, "Session", 632, 1, PacketSession)
-    LAP_DATA = (2, "Lap Data", 972, 0, PacketLap)
-    EVENT = (3, "Event", 40, 2, None)
-    PARTICIPANTS = (4, "Participants", 1257, -1, None)
-    CAR_SETUPS = (5, "Car Setups", 1102, 0, PacketSetups)
-    CAR_TELEMETRY = (6, "Car Telemetry", 1347, 0, PacketCarTelemetry)
-    CAR_STATUS = (7, "Car Status", 1058, 0, PacketCarStatus)
+    MOTION = (0, "Motion", 1464, 0, PacketMotion, CarMotionData)
+    SESSION = (1, "Session", 632, 1, PacketSession, None)
+    LAP_DATA = (2, "Lap Data", 972, 0, PacketLap, None)
+    EVENT = (3, "Event", 40, 2, None, None)
+    PARTICIPANTS = (4, "Participants", 1257, -1, None, None)
+    CAR_SETUPS = (5, "Car Setups", 1102, 0, PacketSetups, None)
+    CAR_TELEMETRY = (6, "Car Telemetry", 1347, 0, PacketCarTelemetry, CarTelemetryData)
+    CAR_STATUS = (7, "Car Status", 1058, 0, PacketCarStatus, CarStatusData)
     FINAL_CLASSIFICATION = (
         8,
         "Final Classification",
         1015,
         0,
         PacketFinalClassification,
+        None,
     )
-    LOBBY_INFO = (9, "Lobby Info", 1191, 0, None)
-    CAR_DAMAGE = (10, "Car Damage", 948, 0, PacketCarDamage)
-    SESSION_HISTORY = (11, "Session History", 1155, 3, None)
+    LOBBY_INFO = (9, "Lobby Info", 1191, 0, None, None)
+    CAR_DAMAGE = (10, "Car Damage", 948, 0, PacketCarDamage, CarDamageData)
+    SESSION_HISTORY = (11, "Session History", 1155, 3, None, None)
 
-    def __init__(self, id: int, name: str, size: int, category: int, model: Structure):
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        size: int,
+        category: int,
+        model: Structure,
+        inner_model: Structure,
+    ):
         self._id = id
         self._name = name
         self._size = size
         self._category = category
         self._model = model
+        self._inner_model = inner_model
 
     @property
     def name(self) -> str:
@@ -45,6 +55,10 @@ class Packet(Enum):
     @property
     def model(self) -> Structure:
         return self._model
+
+    @property
+    def inner_model(self) -> Structure:
+        return self._inner_model
 
     @classmethod
     def get_name_by_size(cls, size: int) -> str:
@@ -109,4 +123,13 @@ class Packet(Enum):
                 return packet.model.from_buffer_copy(udp_packet).to_dict()["header"][
                     "session_time"
                 ]
+        return None
+
+    @classmethod
+    def filter_speed_layer_data(
+        cls, packet_dict: dict[str, float], name: str
+    ) -> dict[str, float]:
+        for packet in cls:
+            if packet.name == name and packet.inner_model is not None:
+                return packet.inner_model.speed_layer_filter(packet_dict)
         return None
