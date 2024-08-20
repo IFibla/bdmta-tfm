@@ -84,9 +84,9 @@ class Packet(Enum):
     @classmethod
     def extract(cls, decoded_packet: dict, name: str) -> [dict]:
         for packet in cls:
-            if packet.name == name and packet.model is not None:
+            if packet.name == name and packet.inner_model is not None:
                 return decoded_packet[packet.model.ARRAY_NAME]
-        raise ValueError(f"No packet found with name {name}")
+        return None
 
     @classmethod
     def flatten(cls, d: dict, parent_key="", sep="_") -> dict:

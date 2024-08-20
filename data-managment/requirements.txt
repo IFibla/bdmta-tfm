@@ -1,2 +1,4 @@
 kafka-python==2.0.2
 influxdb-client==1.44.0
+numpy==2.0.1
+svgpathtools==1.6.1

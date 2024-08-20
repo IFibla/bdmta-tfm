@@ -1,0 +1,41 @@
+@use 'sass:color';
+
+@use '@material/theme/color-palette';
+
+@use '@material/theme/index' as theme with (
+	$primary: #134611,
+	$secondary: #3e8914,
+	$surface: #fff,
+	$background: #fff,
+	$error: color-palette.$red-900
+);
+
+html,
+body {
+	background-color: theme.$surface;
+	color: theme.$on-surface;
+}
+
+a {
+	color: #40b3ff;
+}
+a:visited {
+	color: color.scale(#40b3ff, $lightness: -35%);
+}
+
+:root {
+	--throttle: #32cd32;
+	--throttle-track: #a8d5a2;
+	--brake: #ff4500;
+	--brake-track: #f08080;
+	--rpm: #00ced1;
+	--rpm-track: #b2ebf2;
+	--speed: #4169e1;
+	--speed-track: #b0c4de;
+
+	--accent-color-1: #bcbcbc;
+	--accent-color-2: #fafdfdff;
+	--accent-color-3: #021e37ff;
+	--accent-color-4: #142c40ff;
+	--accent-color-5: #475b6bff;
+}

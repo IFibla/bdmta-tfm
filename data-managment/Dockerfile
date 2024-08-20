@@ -1,17 +1,7 @@
-FROM python:3.11-slim
+FROM bitnami/spark:3.5.1
 LABEL authors="ignasi"
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
 
-WORKDIR /app
-
-RUN adduser --disabled-password --gecos '' appuser
-USER appuser
-
-COPY --chown=appuser:appuser requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY --chown=appuser:appuser . .
-
-CMD ["python", "main.py"]
+# ENTRYPOINT ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2", "spark-main.py"]

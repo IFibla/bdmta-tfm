@@ -1,14 +1,21 @@
 from pyspark.sql.types import ArrayType, MapType, FloatType, IntegerType, StringType
 from pyspark.sql.functions import (
     col,
-    explode,
+    collect_list,
     posexplode,
+    to_json,
+    lag,
+    struct,
+    sum as spark_sum,
     udf,
+    when,
+    lit,
 )
 from pyspark.sql.session import SparkSession
 from packets import Packet
+from track import Track
 
-## --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.0.1,io.delta:delta-spark_2.12:3.2.0
+## --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2
 
 spark = (
     SparkSession.builder.appName("DataDash")
@@ -34,7 +41,6 @@ ingest_decode_explode = (
             col("packet_name")
         ),
     )
-    .filter(col("packet_category") == 0)
     .withColumn(
         "packet_decoded",
         udf(
@@ -42,6 +48,7 @@ ingest_decode_explode = (
             ArrayType(MapType(StringType(), FloatType())),
         )(col("udp_packet"), col("packet_name")),
     )
+    .filter(col("packet_decoded").isNotNull())
     .withColumn(
         "session_uid",
         udf(
@@ -57,6 +64,28 @@ ingest_decode_explode = (
         )(col("udp_packet"), col("packet_name")),
     )
     .select("*", posexplode("packet_decoded").alias("driver", "driver_packet"))
+    .withColumn(
+        "driver_packet",
+        udf(
+            lambda x: (
+                {
+                    **x,
+                    "world_position_perc": Track.find_closest_value(
+                        x["world_position_x"],
+                        x["world_position_y"],
+                        x["world_position_z"],
+                    ),
+                }
+                if "world_position_x" in x
+                else x
+            ),
+            MapType(StringType(), FloatType()),
+        )(col("driver_packet")),
+    )
+    .writeStream.format("console")
+    .outputMode("update")
+    .start()
+    .awaitTermination()
 )
 
 speed_layer = (
@@ -68,8 +97,15 @@ speed_layer = (
         )(col("driver_packet"), col("packet_name")),
     )
     .filter(col("filtered_packet").isNotNull())
-    .select("session_uid", "session_time", "driver", "filtered_packet")
-    .writeStream.format("console")
-    .start()
-    .awaitTermination()
+    .filter(col("driver") == 0)
+    .select("driver", "packet_name", "filtered_packet")
+    .select(to_json(struct("driver", "packet_name", "filtered_packet")).alias("value"))
+    # .writeStream.format("kafka")
+    # .option("kafka.bootstrap.servers", f"kafka:9092")
+    # .option("topic", "stream-serving")
+    # .option("checkpointLocation", "/tmp/checkpoint")  # Ensure this path is accessible
+    # .start()
+    # .awaitTermination()
 )
+
+batch_layer = ingest_decode_explode.groupby("driver").agg(collect_list("driver_packet"))

@@ -1,4 +1,23 @@
 services:
+  # dashboard:
+  #   container_name: dashboard
+  #   build: DataDash/
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     internal-network:
+  #       ipv4_address: 10.5.0.2
+
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    networks:
+      internal-network:
+        ipv4_address: 10.5.0.2
+
   data-ingestion:
     container_name: data-ingestion
     build: data-ingestion/
@@ -7,15 +26,19 @@ services:
     ports:
       - "20777:20777/udp"
     networks:
-      - internal-network
+      internal-network:
+        ipv4_address: 10.5.0.3
 
-  data-managment:
-    container_name: data-managment
-    build: data-managment/
+  data-serving:
+    container_name: data-serving
+    build: data-serving/
+    ports:
+      - "30000:30000"
     env_file:
       - dev.env
     networks:
-      - internal-network
+      internal-network:
+        ipv4_address: 10.5.0.4
 
   zookeeper:
     container_name: zookeeper
@@ -25,7 +48,8 @@ services:
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
     networks:
-      - internal-network
+      internal-network:
+        ipv4_address: 10.5.0.5
 
   kafka:
     container_name: kafka
@@ -37,7 +61,8 @@ services:
     depends_on:
       - zookeeper
     networks:
-      - internal-network
+      internal-network:
+        ipv4_address: 10.5.0.6
 
   kafka-ui:
     container_name: kafka-ui
@@ -49,15 +74,8 @@ services:
     depends_on:
       - kafka
     networks:
-      - internal-network
-
-  influxdb:
-    image: influxdb:latest
-    container_name: influxdb
-    ports:
-      - "8086:8086"
-    networks:
-      - internal-network
+      internal-network:
+        ipv4_address: 10.5.0.7
 
   data-managment-spark-master:
     build: data-managment/
@@ -75,7 +93,8 @@ services:
     volumes:
       - "/Users/ignasi/Documents/_00_BDMTA_/bdmta-tfm/data-managment:/home"
     networks:
-      - internal-network
+      internal-network:
+        ipv4_address: 10.5.0.8
 
   data-managment-spark-worker:
     build: data-managment/
@@ -95,25 +114,16 @@ services:
     depends_on:
       - data-managment-spark-master
     networks:
-      - internal-network
-  # metabase:
-  #   image: metabase/metabase:latest
-  #   container_name: metabase
-  #   hostname: metabase
-  #   volumes:
-  #     - metabase-volume:/dev/random:ro
-  #   ports:
-  #     - "3000:3000"
-  #   networks:
-  #     - internal-network
-  #   healthcheck:
-  #     test: curl --fail -I http://localhost:3000/api/health || exit 1
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 5
+      internal-network:
+        ipv4_address: 10.5.0.9
 
 networks:
   internal-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
 
 volumes:
   metabase-volume:
