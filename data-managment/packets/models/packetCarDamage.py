@@ -57,6 +57,15 @@ class CarDamageData(Structure):
             ]
         }
 
+    @staticmethod
+    def get_silver_layer_data():
+        return [
+            "rear_left_tyresDamage",
+            "rear_right_tyresDamage",
+            "front_left_tyresDamage",
+            "front_right_tyresDamage",
+        ]
+
 
 class PacketCarDamage(Structure):
     ARRAY_NAME = "car_damage_data"

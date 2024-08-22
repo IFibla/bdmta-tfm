@@ -57,6 +57,22 @@ class CarStatusData(Structure):
             ]
         }
 
+    @staticmethod
+    def get_silver_layer_data():
+        return [
+            "fuelMix",
+            "frontBrakeBias",
+            "pitLimiterStatus",
+            "fuelInTank",
+            "fuelCapacity",
+            "fuelRemainingLaps",
+            "drsAllowed",
+            "drsActivationDistance",
+            "ersStoreEnergy",
+            "ersDeployMode",
+            "ersDeployedThisLap",
+        ]
+
 
 class PacketCarStatus(Structure):
     ARRAY_NAME = "car_status_data"

@@ -7,23 +7,16 @@ from pyspark.sql.types import (
     StringType,
     StructType,
     StructField,
-    DoubleType,
 )
 from pyspark.sql.functions import (
     col,
-    collect_list,
     posexplode,
     to_json,
-    lag,
     struct,
-    sum as spark_sum,
     udf,
-    when,
     lit,
-    size,
-    coalesce,
-    row_number,
 )
+import pyspark.sql.functions as F
 from pyspark.sql.session import SparkSession
 from packets import Packet
 from track import Track
@@ -46,7 +39,7 @@ spark = (
 spark = configure_spark_with_delta_pip(spark).getOrCreate()
 spark.sparkContext.setLogLevel("ERROR")
 
-ingest_decode_explode = (
+bronze = (
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", f"kafka:9092")
     .option("subscribe", "stream-ingestion")
@@ -107,7 +100,7 @@ ingest_decode_explode = (
 )
 
 speed_layer = (
-    ingest_decode_explode.withColumn(
+    bronze.withColumn(
         "filtered_packet",
         udf(
             lambda x, y: Packet.filter_speed_layer_data(x, y),
@@ -133,60 +126,86 @@ output_schema = StructType(
         StructField("position", FloatType(), True),
         StructField("lap", IntegerType(), True),
     ]
+    + [StructField(var, FloatType(), True) for var in Packet.filter_silver_layer_data()]
 )
 
 
-def rewrite_df(generator, lap):
-    rows = pd.concat(generator, ignore_index=True)
-    rows.sort_values(by=["session_time"], inplace=True)
+bronze_to_silver = bronze.withColumn(
+    "position",
+    udf(
+        lambda x: x["world_position_perc"] if "world_position_perc" in x else None,
+        FloatType(),
+    )(col("driver_packet")),
+)
 
-    if not any(rows["lap"] != -1):
-        rows.iloc[0, rows.columns.get_loc("lap")] = lap
-
-    for i in range(1, len(rows)):
-        if rows.iloc[i].position == -1:
-            rows.iloc[i, rows.columns.get_loc("lap")] = lap
-            rows.iloc[i, rows.columns.get_loc("position")] = rows.iloc[i - 1].position
-        elif rows.iloc[i - 1].position > rows.iloc[i].position:
-            lap += 1
-            rows.iloc[i, rows.columns.get_loc("lap")] = lap
-        else:
-            rows.iloc[i, rows.columns.get_loc("lap")] = lap
-
-    return rows, lap
-
-
-def add_laps(key, pdf_iter, state):
-    current_lap = state.get[0] if state.exists else 1
-    pdf_iter, lap = rewrite_df(pdf_iter, current_lap)
-    state.update((lap,))
-    yield pdf_iter
-
-
-df_with_position = (
-    ingest_decode_explode.withColumn(
-        "position",
+for var in Packet.filter_silver_layer_data():
+    bronze_to_silver = bronze_to_silver.withColumn(
+        var,
         udf(
-            lambda x: x["world_position_perc"] if "world_position_perc" in x else None,
+            lambda x: x[var] if var in x else None,
             FloatType(),
         )(col("driver_packet")),
     )
-    .fillna(-1, subset=["position"])
+
+silver = (
+    bronze_to_silver.fillna(-1, subset=["position"])
     .withColumn("lap", lit(-1))
-    .select(
-        col("driver"),
-        col("session_time"),
-        col("lap"),
-        col("position"),
+    .drop(
+        col("udp_packet"),
+        col("packet_size"),
+        col("packet_name"),
+        col("packet_category"),
+        col("packet_decoded"),
+        col("session_uid"),
+        col("driver_packet"),
     )
     .filter(col("driver") == 0)
     .groupby("driver")
     .applyInPandasWithState(
-        add_laps,
+        Track.add_laps,
         outputStructType=output_schema,
         stateStructType="current_lap int",
-        outputMode="Update",
+        outputMode="Append",
         timeoutConf=GroupStateTimeout.NoTimeout,
+    )
+    .drop(col("position"), col("session_time"))
+)
+
+gold = (
+    silver.groupby(["driver", "lap"])
+    .agg(
+        *[
+            F.count(F.col(col)).alias(f"count_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
+        *[
+            F.avg(F.col(col)).alias(f"mean_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
+        *[
+            F.stddev(F.col(col)).alias(f"stddev_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
+        *[
+            F.min(F.col(col)).alias(f"min_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
+        *[
+            F.max(F.col(col)).alias(f"max_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
+        *[
+            F.expr(f"percentile_approx({col}, 0.25)").alias(f"25th_percentile_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
+        *[
+            F.expr(f"percentile_approx({col}, 0.5)").alias(f"50th_percentile_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
+        *[
+            F.expr(f"percentile_approx({col}, 0.75)").alias(f"75th_percentile_{col}")
+            for col in Packet.filter_silver_layer_data()
+        ],
     )
     .writeStream.format("console")
     .outputMode("update")

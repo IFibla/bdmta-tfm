@@ -133,3 +133,11 @@ class Packet(Enum):
             if packet.name == name and packet.inner_model is not None:
                 return packet.inner_model.speed_layer_filter(packet_dict)
         return None
+
+    @classmethod
+    def filter_silver_layer_data(cls) -> [str]:
+        result = []
+        for packet in cls:
+            if packet.inner_model is not None:
+                result.extend(packet.inner_model.get_silver_layer_data())
+        return result

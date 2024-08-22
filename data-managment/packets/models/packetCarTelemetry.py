@@ -81,6 +81,28 @@ class CarTelemetryData(Structure):
             ]
         }
 
+    @staticmethod
+    def get_silver_layer_data():
+        return [
+            "rear_left_brakes_temperature",
+            "rear_right_brakes_temperature",
+            "front_left_brakes_temperature",
+            "front_right_brakes_temperature",
+            "rear_left_tyres_surface_temperature",
+            "rear_right_tyres_surface_temperature",
+            "front_left_tyres_surface_temperature",
+            "front_right_tyres_surface_temperature",
+            "rear_left_tyres_inner_temperature",
+            "rear_right_tyres_inner_temperature",
+            "front_left_tyres_inner_temperature",
+            "front_right_tyres_inner_temperature",
+            "engine_temperature",
+            "rear_left_tyres_pressure",
+            "rear_right_tyres_pressure",
+            "front_left_tyres_pressure",
+            "front_right_tyres_pressure",
+        ]
+
 
 class PacketCarTelemetry(Structure):
     ARRAY_NAME = "car_telemetry"

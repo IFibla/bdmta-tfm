@@ -44,6 +44,17 @@ class CarMotionData(Structure):
             ]
         }
 
+    @staticmethod
+    def get_silver_layer_data():
+        return [
+            "g_force_lateral",
+            "g_force_longitudinal",
+            "g_force_vertical",
+            "yaw",
+            "pitch",
+            "roll",
+        ]
+
 
 class PacketMotion(Structure):
     ARRAY_NAME = "car_motion"
