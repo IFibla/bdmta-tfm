@@ -7,6 +7,7 @@ from pyspark.sql.types import (
     StringType,
     StructType,
     StructField,
+    TimestampType,
 )
 from pyspark.sql.functions import (
     col,
@@ -43,8 +44,10 @@ bronze = (
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", f"kafka:9092")
     .option("subscribe", "stream-ingestion")
+    .option("failOnDataLoss", "false")
     .load()
     .selectExpr("value as udp_packet")
+    .withColumn("timestamp", F.current_timestamp())
     .withColumn("packet_size", udf(lambda x: len(x), IntegerType())(col("udp_packet")))
     .withColumn(
         "packet_name",
@@ -121,6 +124,7 @@ speed_layer = (
 
 output_schema = StructType(
     [
+        StructField("timestamp", TimestampType(), True),
         StructField("driver", IntegerType(), True),
         StructField("session_time", FloatType(), True),
         StructField("position", FloatType(), True),
@@ -159,56 +163,66 @@ silver = (
         col("session_uid"),
         col("driver_packet"),
     )
-    .filter(col("driver") == 0)
+    .withWatermark("timestamp", "1 minute")
     .groupby("driver")
     .applyInPandasWithState(
         Track.add_laps,
         outputStructType=output_schema,
         stateStructType="current_lap int",
         outputMode="Append",
-        timeoutConf=GroupStateTimeout.NoTimeout,
+        timeoutConf=GroupStateTimeout.ProcessingTimeTimeout,
     )
     .drop(col("position"), col("session_time"))
-)
-
-gold = (
-    silver.groupby(["driver", "lap"])
-    .agg(
-        *[
-            F.count(F.col(col)).alias(f"count_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-        *[
-            F.avg(F.col(col)).alias(f"mean_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-        *[
-            F.stddev(F.col(col)).alias(f"stddev_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-        *[
-            F.min(F.col(col)).alias(f"min_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-        *[
-            F.max(F.col(col)).alias(f"max_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-        *[
-            F.expr(f"percentile_approx({col}, 0.25)").alias(f"25th_percentile_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-        *[
-            F.expr(f"percentile_approx({col}, 0.5)").alias(f"50th_percentile_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-        *[
-            F.expr(f"percentile_approx({col}, 0.75)").alias(f"75th_percentile_{col}")
-            for col in Packet.filter_silver_layer_data()
-        ],
-    )
-    .writeStream.format("console")
-    .outputMode("update")
-    .start()
+    .writeStream.format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "/tmp/delta/_checkpoints/")
+    .start("delta/events")
     .awaitTermination()
 )
+
+# gold = (
+#     silver.groupby(col("driver"), col("lap"))
+#     .agg(
+#         *[
+#             F.count(F.col(col)).alias(f"count_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#         *[
+#             F.avg(F.col(col)).alias(f"mean_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#         *[
+#             F.stddev(F.col(col)).alias(f"stddev_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#         *[
+#             F.min(F.col(col)).alias(f"min_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#         *[
+#             F.max(F.col(col)).alias(f"max_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#         *[
+#             F.expr(f"percentile_approx({col}, 0.25)").alias(f"25th_percentile_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#         *[
+#             F.expr(f"percentile_approx({col}, 0.5)").alias(f"50th_percentile_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#         *[
+#             F.expr(f"percentile_approx({col}, 0.75)").alias(f"75th_percentile_{col}")
+#             for col in Packet.filter_silver_layer_data()
+#         ],
+#     )
+#     .select("driver", "lap")
+#     .writeStream.outputMode("update")
+#     .format("console")
+#     # .format("csv")
+#     # .option("header", "true")
+#     # .option("path", "gold")
+#     # .option("checkpointLocation", "/tmp/checkpoint")
+#     .start()
+#     .awaitTermination()
+# )

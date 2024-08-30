@@ -17,22 +17,17 @@ class Track:
         rows = pd.concat(generator, ignore_index=True)
         rows.sort_values(by=["session_time"], inplace=True)
 
-        if not any(rows["lap"] != -1):
-            rows.iloc[0, rows.columns.get_loc("lap")] = lap
+        import numpy as np
 
-        for i in range(1, len(rows)):
-            if rows.iloc[i].position == -1:
-                rows.iloc[i, rows.columns.get_loc("lap")] = lap
-                rows.iloc[i, rows.columns.get_loc("position")] = rows.iloc[
-                    i - 1
-                ].position
-            elif rows.iloc[i - 1].position > rows.iloc[i].position:
-                lap += 1
-                rows.iloc[i, rows.columns.get_loc("lap")] = lap
-            else:
-                rows.iloc[i, rows.columns.get_loc("lap")] = lap
+        rows["lap"] = np.where(rows["lap"] != -1, rows["lap"], lap)
+        rows["position"] = np.where(
+            rows["position"] == -1, rows["position"].shift(1), rows["position"]
+        )
 
-        return rows, lap
+        condition = rows["position"].diff() < 0
+        rows.loc[condition, "lap"] = rows["lap"].shift(1) + 1
+
+        return rows, rows["lap"].max()
 
     @staticmethod
     def add_laps(key, pdf_iter, state):

@@ -64,19 +64,6 @@ services:
       internal-network:
         ipv4_address: 10.5.0.6
 
-  kafka-ui:
-    container_name: kafka-ui
-    image: provectuslabs/kafka-ui:latest
-    ports:
-      - "8000:8080"
-    environment:
-      DYNAMIC_CONFIG_ENABLED: 'true'
-    depends_on:
-      - kafka
-    networks:
-      internal-network:
-        ipv4_address: 10.5.0.7
-
   data-managment-spark-master:
     build: data-managment/
     container_name: data-managment-spark-master
@@ -116,6 +103,18 @@ services:
     networks:
       internal-network:
         ipv4_address: 10.5.0.9
+
+  postgres:
+    image: postgres
+    container_name: postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+    networks:
+      internal-network:
+        ipv4_address: 10.5.0.10
 
 networks:
   internal-network:
