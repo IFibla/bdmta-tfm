@@ -1,7 +1,9 @@
 from enum import Enum
 from typing import Dict
 
+
 class NationalityId(Enum):
+    UNKNOWN = 0
     AMERICAN = 1
     ARGENTINEAN = 2
     AUSTRALIAN = 3
@@ -90,7 +92,9 @@ class NationalityId(Enum):
     WELSH = 86
     VIETNAMESE = 87
 
+
 NATIONALITY_NAMES: Dict[int, str] = {
+    NationalityId.UNKNOWN.value: "Unknown",
     NationalityId.AMERICAN.value: "American",
     NationalityId.ARGENTINEAN.value: "Argentinean",
     NationalityId.AUSTRALIAN.value: "Australian",

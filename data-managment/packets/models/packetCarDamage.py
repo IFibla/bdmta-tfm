@@ -57,14 +57,17 @@ class CarDamageData(Structure):
             ]
         }
 
-    @staticmethod
-    def get_silver_layer_data():
-        return [
-            "rear_left_tyresDamage",
-            "rear_right_tyresDamage",
-            "front_left_tyresDamage",
-            "front_right_tyresDamage",
-        ]
+    @classmethod
+    def get_silver_layer_data(cls, packet: dict[str, float]) -> dict[str, float]:
+        return {
+            field: packet[field]
+            for field in [
+                "rear_left_tyresDamage",
+                "rear_right_tyresDamage",
+                "front_left_tyresDamage",
+                "front_right_tyresDamage",
+            ]
+        }
 
 
 class PacketCarDamage(Structure):

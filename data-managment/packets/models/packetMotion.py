@@ -44,16 +44,19 @@ class CarMotionData(Structure):
             ]
         }
 
-    @staticmethod
-    def get_silver_layer_data():
-        return [
-            "g_force_lateral",
-            "g_force_longitudinal",
-            "g_force_vertical",
-            "yaw",
-            "pitch",
-            "roll",
-        ]
+    @classmethod
+    def get_silver_layer_data(cls, packet: dict[str, float]) -> dict[str, float]:
+        return {
+            field: packet[field]
+            for field in [
+                "g_force_lateral",
+                "g_force_longitudinal",
+                "g_force_vertical",
+                "yaw",
+                "pitch",
+                "roll",
+            ]
+        }
 
 
 class PacketMotion(Structure):

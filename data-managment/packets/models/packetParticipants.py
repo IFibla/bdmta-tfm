@@ -23,15 +23,9 @@ class ParticipantData(Structure):
 
     def to_dict(self):
         return {
-            "aiControlled": self.aiControlled,
-            "driverId": self.driverId,
-            "networkId": self.networkId,
-            "teamId": self.teamId,
-            "myTeam": self.myTeam,
-            "raceNumber": self.raceNumber,
-            "nationality": self.nationality,
-            "name": self.name.decode("utf-8").rstrip("\x00"),
-            "yourTelemetry": self.yourTelemetry,
+            "driverId": float(self.driverId),
+            "teamId": float(self.teamId),
+            "nationality": float(self.nationality),
         }
 
 

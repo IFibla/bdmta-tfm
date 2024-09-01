@@ -57,21 +57,24 @@ class CarStatusData(Structure):
             ]
         }
 
-    @staticmethod
-    def get_silver_layer_data():
-        return [
-            "fuelMix",
-            "frontBrakeBias",
-            "pitLimiterStatus",
-            "fuelInTank",
-            "fuelCapacity",
-            "fuelRemainingLaps",
-            "drsAllowed",
-            "drsActivationDistance",
-            "ersStoreEnergy",
-            "ersDeployMode",
-            "ersDeployedThisLap",
-        ]
+    @classmethod
+    def get_silver_layer_data(cls, packet: dict[str, float]) -> dict[str, float]:
+        return {
+            field: packet[field]
+            for field in [
+                "fuelMix",
+                "frontBrakeBias",
+                "pitLimiterStatus",
+                "fuelInTank",
+                "fuelCapacity",
+                "fuelRemainingLaps",
+                "drsAllowed",
+                "drsActivationDistance",
+                "ersStoreEnergy",
+                "ersDeployMode",
+                "ersDeployedThisLap",
+            ]
+        }
 
 
 class PacketCarStatus(Structure):

@@ -1,3 +1,4 @@
+from pyspark.sql import Window
 from pyspark.sql.streaming.state import GroupStateTimeout, GroupState
 from pyspark.sql.types import (
     ArrayType,
@@ -23,6 +24,7 @@ from packets import Packet
 from track import Track
 from delta import *
 import pandas as pd
+import json
 
 pd.options.mode.chained_assignment = None
 
@@ -40,7 +42,7 @@ spark = (
 spark = configure_spark_with_delta_pip(spark).getOrCreate()
 spark.sparkContext.setLogLevel("ERROR")
 
-bronze = (
+ingestion = (
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", f"kafka:9092")
     .option("subscribe", "stream-ingestion")
@@ -82,147 +84,131 @@ bronze = (
         )(col("udp_packet"), col("packet_name")),
     )
     .select("*", posexplode("packet_decoded").alias("driver", "driver_packet"))
+)
+
+participants = (
+    ingestion.filter(col("packet_name") == "Participants")
     .withColumn(
-        "driver_packet",
+        "name",
+        udf(lambda x: Packet.get_driver_name(x["driverId"]), StringType())(
+            col("driver_packet")
+        ),
+    )
+    .withColumn(
+        "team",
+        udf(lambda x: Packet.get_team_name(x["teamId"]), StringType())(
+            col("driver_packet")
+        ),
+    )
+    .withColumn(
+        "nationality",
+        udf(lambda x: Packet.get_nationality(x["nationality"]), StringType())(
+            col("driver_packet")
+        ),
+    )
+    .select(
+        "driver",
+        "name",
+        "team",
+        "nationality",
+    )
+    .writeStream.format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "/tmp/delta/participants/_checkpoints/")
+    .start("delta/participants")
+)
+
+laps_detection = (
+    ingestion.filter(col("packet_name") == "Motion")
+    .withColumn(
+        "position",
         udf(
-            lambda x: (
-                {
-                    **x,
-                    "world_position_perc": Track.find_closest_value(
-                        x["world_position_x"],
-                        x["world_position_y"],
-                        x["world_position_z"],
-                    ),
-                }
-                if "world_position_x" in x
-                else x
+            lambda x: Track.find_closest_value(
+                x["world_position_x"],
+                x["world_position_y"],
+                x["world_position_z"],
             ),
-            MapType(StringType(), FloatType()),
-        )(col("driver_packet")),
-    )
-)
-
-speed_layer = (
-    bronze.withColumn(
-        "filtered_packet",
-        udf(
-            lambda x, y: Packet.filter_speed_layer_data(x, y),
-            MapType(StringType(), FloatType()),
-        )(col("driver_packet"), col("packet_name")),
-    )
-    .filter(col("filtered_packet").isNotNull())
-    .filter(col("driver") == 0)
-    .select("driver", "packet_name", "filtered_packet")
-    .select(to_json(struct("driver", "packet_name", "filtered_packet")).alias("value"))
-    # .writeStream.format("kafka")
-    # .option("kafka.bootstrap.servers", f"kafka:9092")
-    # .option("topic", "stream-serving")
-    # .option("checkpointLocation", "/tmp/checkpoint")  # Ensure this path is accessible
-    # .start()
-    # .awaitTermination()
-)
-
-output_schema = StructType(
-    [
-        StructField("timestamp", TimestampType(), True),
-        StructField("driver", IntegerType(), True),
-        StructField("session_time", FloatType(), True),
-        StructField("position", FloatType(), True),
-        StructField("lap", IntegerType(), True),
-    ]
-    + [StructField(var, FloatType(), True) for var in Packet.filter_silver_layer_data()]
-)
-
-
-bronze_to_silver = bronze.withColumn(
-    "position",
-    udf(
-        lambda x: x["world_position_perc"] if "world_position_perc" in x else None,
-        FloatType(),
-    )(col("driver_packet")),
-)
-
-for var in Packet.filter_silver_layer_data():
-    bronze_to_silver = bronze_to_silver.withColumn(
-        var,
-        udf(
-            lambda x: x[var] if var in x else None,
             FloatType(),
         )(col("driver_packet")),
     )
-
-silver = (
-    bronze_to_silver.fillna(-1, subset=["position"])
-    .withColumn("lap", lit(-1))
-    .drop(
-        col("udp_packet"),
-        col("packet_size"),
-        col("packet_name"),
-        col("packet_category"),
-        col("packet_decoded"),
-        col("session_uid"),
-        col("driver_packet"),
+    .select("driver", "session_time", "position")
+    .groupby(col("driver"))
+    .applyInPandas(
+        Track.compare_positions,
+        schema="driver long, session_time float",
     )
-    .withWatermark("timestamp", "1 minute")
-    .groupby("driver")
-    .applyInPandasWithState(
-        Track.add_laps,
-        outputStructType=output_schema,
-        stateStructType="current_lap int",
-        outputMode="Append",
-        timeoutConf=GroupStateTimeout.ProcessingTimeTimeout,
-    )
-    .drop(col("position"), col("session_time"))
     .writeStream.format("delta")
     .outputMode("append")
-    .option("checkpointLocation", "/tmp/delta/_checkpoints/")
-    .start("delta/events")
-    .awaitTermination()
+    .option("checkpointLocation", "/tmp/delta/laps/_checkpoints/")
+    .start("delta/laps")
 )
 
-# gold = (
-#     silver.groupby(col("driver"), col("lap"))
-#     .agg(
-#         *[
-#             F.count(F.col(col)).alias(f"count_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#         *[
-#             F.avg(F.col(col)).alias(f"mean_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#         *[
-#             F.stddev(F.col(col)).alias(f"stddev_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#         *[
-#             F.min(F.col(col)).alias(f"min_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#         *[
-#             F.max(F.col(col)).alias(f"max_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#         *[
-#             F.expr(f"percentile_approx({col}, 0.25)").alias(f"25th_percentile_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#         *[
-#             F.expr(f"percentile_approx({col}, 0.5)").alias(f"50th_percentile_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#         *[
-#             F.expr(f"percentile_approx({col}, 0.75)").alias(f"75th_percentile_{col}")
-#             for col in Packet.filter_silver_layer_data()
-#         ],
-#     )
-#     .select("driver", "lap")
-#     .writeStream.outputMode("update")
-#     .format("console")
-#     # .format("csv")
-#     # .option("header", "true")
-#     # .option("path", "gold")
-#     # .option("checkpointLocation", "/tmp/checkpoint")
-#     .start()
-#     .awaitTermination()
-# )
+telemetry = (
+    ingestion.filter(col("packet_name") == "Car Telemetry")
+    .withColumn(
+        "filtered_packet",
+        udf(
+            lambda x, y: Packet.filter_silver_layer_data(x, y),
+            MapType(StringType(), FloatType()),
+        )(col("driver_packet"), col("packet_name")),
+    )
+    .select("driver", "filtered_packet", "session_time")
+    .withColumn("keys", F.map_keys(col("filtered_packet")))
+    .select(
+        "*",
+        *[
+            col("filtered_packet").getItem(key).alias(key)
+            for key in [
+                "rear_left_brakes_temperature",
+                "rear_right_brakes_temperature",
+                "front_left_brakes_temperature",
+                "front_right_brakes_temperature",
+                "rear_left_tyres_surface_temperature",
+                "rear_right_tyres_surface_temperature",
+                "front_left_tyres_surface_temperature",
+                "front_right_tyres_surface_temperature",
+                "rear_left_tyres_inner_temperature",
+                "rear_right_tyres_inner_temperature",
+                "front_left_tyres_inner_temperature",
+                "front_right_tyres_inner_temperature",
+                "engine_temperature",
+                "rear_left_tyres_pressure",
+                "rear_right_tyres_pressure",
+                "front_left_tyres_pressure",
+                "front_right_tyres_pressure",
+            ]
+        ],
+    )
+    .drop("filtered_packet", "keys")
+    .writeStream.format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "/tmp/delta/telemetry/_checkpoints/")
+    .start("delta/telemetry")
+)
+
+
+def process_and_update_laps(batch_df, epoch_id):
+    window_spec = Window.partitionBy("driver").orderBy("session_time")
+
+    batch_df.withColumn(
+        "prev_session_time", F.lag("session_time", 1).over(window_spec)
+    ).filter(col("prev_session_time").isNotNull()).write.format("delta").mode(
+        "append"
+    ).save(
+        "delta/laps_updated"
+    )
+
+
+participants_df = spark.read.format("delta").load("delta/participants").dropDuplicates()
+
+query = (
+    spark.readStream.format("delta")
+    .load("delta/laps")
+    .join(participants_df, on="driver", how="inner")
+    .writeStream.trigger(processingTime="30 seconds")
+    .foreachBatch(process_and_update_laps)
+    # .format("console")
+    .option("checkpointLocation", "/tmp/delta/laps_updated/_checkpoints/")
+    .start()
+    .awaitTermination()
+)

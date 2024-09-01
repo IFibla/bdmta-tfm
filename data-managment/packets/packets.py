@@ -1,4 +1,5 @@
 from ctypes import Structure
+from .constants import *
 from enum import Enum
 from .models import *
 
@@ -8,7 +9,7 @@ class Packet(Enum):
     SESSION = (1, "Session", 632, 1, PacketSession, None)
     LAP_DATA = (2, "Lap Data", 972, 0, PacketLap, None)
     EVENT = (3, "Event", 40, 2, None, None)
-    PARTICIPANTS = (4, "Participants", 1257, -1, None, None)
+    PARTICIPANTS = (4, "Participants", 1257, 2, PacketParticipants, ParticipantData)
     CAR_SETUPS = (5, "Car Setups", 1102, 0, PacketSetups, None)
     CAR_TELEMETRY = (6, "Car Telemetry", 1347, 0, PacketCarTelemetry, CarTelemetryData)
     CAR_STATUS = (7, "Car Status", 1058, 0, PacketCarStatus, CarStatusData)
@@ -84,7 +85,7 @@ class Packet(Enum):
     @classmethod
     def extract(cls, decoded_packet: dict, name: str) -> [dict]:
         for packet in cls:
-            if packet.name == name and packet.inner_model is not None:
+            if packet.name == name and packet.model is not None:
                 return decoded_packet[packet.model.ARRAY_NAME]
         return None
 
@@ -135,9 +136,22 @@ class Packet(Enum):
         return None
 
     @classmethod
-    def filter_silver_layer_data(cls) -> [str]:
-        result = []
+    def filter_silver_layer_data(
+        cls, packet_dict: dict[str, float], name: str
+    ) -> dict[str, float]:
         for packet in cls:
-            if packet.inner_model is not None:
-                result.extend(packet.inner_model.get_silver_layer_data())
-        return result
+            if packet.name == name and packet.inner_model is not None:
+                return packet.inner_model.get_silver_layer_data(packet_dict)
+        return None
+
+    @staticmethod
+    def get_driver_name(driver_id: int) -> str:
+        return DRIVER_NAMES[driver_id]
+
+    @staticmethod
+    def get_team_name(team_id: int) -> str:
+        return TEAMS_NAMES[team_id]
+
+    @staticmethod
+    def get_nationality(nationality_id: int) -> str:
+        return NATIONALITY_NAMES[nationality_id]

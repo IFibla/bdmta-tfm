@@ -13,6 +13,14 @@ class Track:
         return waypoints[min_index][3]
 
     @staticmethod
+    def compare_positions(df):
+        df.drop_duplicates(inplace=True)
+        df.sort_values(by=["session_time"], inplace=True)
+        df["prev_position"] = df["position"].shift(1)
+        df = df[(df["position"] < df["prev_position"])]
+        return df[["driver", "session_time"]]
+
+    @staticmethod
     def _rewrite_df(generator, lap):
         rows = pd.concat(generator, ignore_index=True)
         rows.sort_values(by=["session_time"], inplace=True)
