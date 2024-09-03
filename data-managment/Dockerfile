@@ -4,4 +4,4 @@ LABEL authors="ignasi"
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
-# ENTRYPOINT ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2", "spark-main.py"]
+# ENTRYPOINT ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.2", "spark-streaming-main.py"]
