@@ -130,7 +130,7 @@ laps_detection = (
     .select("session_type", "session_time", "driver", "position")
     .groupby(F.col("driver"))
     .applyInPandas(
-        Track.compare_positions,
+        Track.compare_positions_to_extract_laps,
         schema="session_type string, driver long, session_time float",
     )
     .writeStream.queryName("laps")

@@ -38,9 +38,9 @@ class Track:
         return waypoints[min_index][3]
 
     @staticmethod
-    def get_point_category(point):
+    def get_point_category(_x, _y, _z):
         """
-        Returns the category of the specified point from the waypoints list.
+        Returns the segment of the specified point from the waypoints list.
 
         Parameters:
         ----------
@@ -50,15 +50,17 @@ class Track:
         Returns:
         -------
         any
-            The category (5th element) of the specified point if found, otherwise None.
+            The segment of the specified point if found, otherwise None.
         """
-        for _, _, _, p, c in waypoints:
-            if point == c:
-                return c
-        return None
+        distances = [
+            (((_x - x) ** 2) + ((_y - y) ** 2) + ((_z - z) ** 2)) ** 0.5
+            for x, y, z, _, _ in waypoints
+        ]
+        min_index = distances.index(min(distances))
+        return waypoints[min_index][4]
 
     @staticmethod
-    def compare_positions(df):
+    def compare_positions_to_extract_laps(df):
         """
         Compares positions within the given DataFrame to identify instances of significant positional improvement.
 
@@ -87,5 +89,16 @@ class Track:
             & (df["position"] < 0.05)
             & (0.95 < df["prev_position"])
         ][["session_type", "driver", "session_time"]]
+        df.drop_duplicates(inplace=True)
+        return df
+
+    @staticmethod
+    def compare_positions_to_extract_segments(df):
+        df.sort_values(by=["session_time"], inplace=True)
+        df["prev_segment"] = df["segment"].shift(1)
+        df = df[df["prev_segment"] != df["segment"]][
+            ["session_type", "driver", "session_time", "prev_segment", "segment"]
+        ]
+        df.dropna(inplace=True)
         df.drop_duplicates(inplace=True)
         return df

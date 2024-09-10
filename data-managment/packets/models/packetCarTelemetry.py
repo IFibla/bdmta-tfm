@@ -86,6 +86,12 @@ class CarTelemetryData(Structure):
         return {
             field: packet[field]
             for field in [
+                "speed",
+                "throttle",
+                "brake",
+                "gear",
+                "engine_rpm",
+                "drs",
                 "rear_left_brakes_temperature",
                 "rear_right_brakes_temperature",
                 "front_left_brakes_temperature",

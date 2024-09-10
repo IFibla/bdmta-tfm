@@ -149,20 +149,20 @@ participants = (
     ingestion.filter(F.col("packet_name") == "Participants")
     .withColumn(
         "name",
-        F.udf(
-            lambda x: Packet.get_name_by_category("driver", x["driverId"]), StringType()
-        )(F.col("driver_packet")),
+        F.udf(lambda x: Packet.get_driver_name(x["driverId"]), StringType())(
+            F.col("driver_packet")
+        ),
     )
     .withColumn(
         "team",
-        F.udf(lambda x: Packet.get_name_by_category("team", x["teamId"]), StringType())(
+        F.udf(lambda x: Packet.get_team_name(x["teamId"]), StringType())(
             F.col("driver_packet")
         ),
     )
     .withColumn(
         "nationality",
         F.udf(
-            lambda x: Packet.get_name_by_category("nationality", x["nationality"]),
+            lambda x: Packet.get_nationality(x["nationality"]),
             StringType(),
         )(F.col("driver_packet")),
     )
@@ -183,7 +183,6 @@ write_stream(
     "/tmp/delta/participants/_checkpoints/",
 )
 
-# Process Lap Detection
 laps_detection = (
     ingestion.filter(F.col("packet_name") == "Motion")
     .withColumn(
@@ -200,12 +199,39 @@ laps_detection = (
     .select("session_type", "session_time", "driver", "position")
     .groupby(F.col("driver"))
     .applyInPandas(
-        Track.compare_positions,
+        Track.compare_positions_to_extract_laps,
         schema="session_type string, driver long, session_time float",
     )
 )
 
 write_stream(laps_detection, "laps", "delta/laps", "/tmp/delta/laps/_checkpoints/")
+
+segments_detection = (
+    ingestion.filter(F.col("packet_name") == "Motion")
+    .withColumn(
+        "segment",
+        F.udf(
+            lambda x: Track.get_point_category(
+                x["world_position_x"], x["world_position_y"], x["world_position_z"]
+            ),
+            FloatType(),
+        )(F.col("driver_packet")),
+    )
+    .select("session_type", "session_time", "driver", "segment")
+    .groupby(F.col("driver"))
+    .applyInPandas(
+        Track.compare_positions_to_extract_segments,
+        schema="session_type string, driver long, session_time float, prev_segment float, segment float",
+    )
+)
+
+write_stream(
+    segments_detection,
+    "segments",
+    "delta/segments",
+    "/tmp/delta/segments/_checkpoints/",
+)
+
 
 # Process Telemetry
 process_packet(
