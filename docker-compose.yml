@@ -8,16 +8,6 @@ services:
   #     internal-network:
   #       ipv4_address: 10.5.0.2
 
-  grafana:
-    image: grafana/grafana-enterprise
-    container_name: grafana
-    restart: unless-stopped
-    ports:
-      - '3000:3000'
-    networks:
-      internal-network:
-        ipv4_address: 10.5.0.2
-
   data-ingestion:
     container_name: data-ingestion
     build: data-ingestion/

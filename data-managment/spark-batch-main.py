@@ -4,7 +4,7 @@ import pyspark.sql.functions as F
 from delta import configure_spark_with_delta_pip
 import pandas as pd
 
-SESSION_TYPE = "fp2-redbull-ring-e0"
+SESSION_TYPE = "race-redbull-ring-e3"
 pd.options.mode.chained_assignment = None
 
 # Initialize Spark session with Delta Lake configuration
@@ -77,6 +77,7 @@ def read_data(path, session_type_filter, driver_col):
 telemetry = read_data("delta/telemetry", SESSION_TYPE, "driver_telemetry")
 status = read_data("delta/status", SESSION_TYPE, "driver_telemetry")
 damage = read_data("delta/damage", SESSION_TYPE, "driver_telemetry")
+motion = read_data("delta/motion", SESSION_TYPE, "driver_telemetry")
 
 # Define excluded columns for aggregation
 excluded_columns = [
@@ -159,10 +160,17 @@ status_with_laps = process_data(
 damage_with_laps = process_data(
     damage, laps, "driver_telemetry", "start_lap", "end_lap", "driver_lap"
 )
+motion_with_laps = process_data(
+    motion, laps, "driver_telemetry", "start_lap", "end_lap", "driver_lap"
+)
 
-consolidated_df_laps = telemetry_with_laps.join(
-    status_with_laps, ["driver", "start_lap", "end_lap"], "inner"
-).join(damage_with_laps, ["driver", "start_lap", "end_lap"], "inner")
+consolidated_df_laps = (
+    telemetry_with_laps.join(
+        status_with_laps, ["driver", "start_lap", "end_lap"], "inner"
+    )
+    .join(damage_with_laps, ["driver", "start_lap", "end_lap"], "inner")
+    .join(motion_with_laps, ["driver", "start_lap", "end_lap"], "inner")
+)
 
 consolidated_df_laps.write.mode("overwrite").save("delta/lap_results")
 
@@ -190,16 +198,31 @@ damage_with_segments = process_data(
     "end_segment",
     "driver_segment",
 )
-
+motion_with_segments = process_data(
+    motion,
+    joined_segments,
+    "driver_telemetry",
+    "start_segment",
+    "end_segment",
+    "driver_segment",
+)
 # Join all processed data into one consolidated DataFrame
-consolidated_df_segments = telemetry_with_segments.join(
-    status_with_segments,
-    ["driver", "segment", "start_segment", "end_segment", "start_lap", "end_lap"],
-    "inner",
-).join(
-    damage_with_segments,
-    ["driver", "segment", "start_segment", "end_segment", "start_lap", "end_lap"],
-    "inner",
+consolidated_df_segments = (
+    telemetry_with_segments.join(
+        status_with_segments,
+        ["driver", "segment", "start_segment", "end_segment", "start_lap", "end_lap"],
+        "inner",
+    )
+    .join(
+        damage_with_segments,
+        ["driver", "segment", "start_segment", "end_segment", "start_lap", "end_lap"],
+        "inner",
+    )
+    .join(
+        motion_with_segments,
+        ["driver", "segment", "start_segment", "end_segment", "start_lap", "end_lap"],
+        "inner",
+    )
 )
 
 # Save the consolidated DataFrame
